@@ -11,6 +11,15 @@ Provide a dashboard that shows BTC, stock indices, gold prices, weather, and CPU
 - `main.py` serves `frontend/dist/index.html` when present and falls back to the legacy inline HTML when not built.
 - Because it depends on external APIs, return `N/A` when fetches fail.
 
+## Requirements
+- Python 3.12+
+- uv (recommended)
+
+## Setup
+```bash
+uv sync
+```
+
 ## Run
 ```bash
 uv run uvicorn main:app --host 0.0.0.0 --port 8080
@@ -22,6 +31,10 @@ cd frontend
 npm install
 npm run build
 ```
+
+## API
+- `GET /api/dashboard`: BTC/indices/gold/temperature/time
+- `GET /api/weather`: Current weather in Tokyo
 
 ## Tests
 There are no automated tests at the moment.
