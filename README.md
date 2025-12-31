@@ -2,6 +2,8 @@
 
 A simple trading dashboard powered by FastAPI. It shows BTC, stock indices, gold prices, weather, and CPU temperature.
 
+![Demo](demo.png)
+
 ## Requirements
 - Python 3.12+
 - uv (recommended)
