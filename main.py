@@ -1,12 +1,22 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 import requests
 import psutil
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
+from pathlib import Path
 
 app = FastAPI(title="Trading Dashboard")
+
+BASE_DIR = Path(__file__).resolve().parent
+DIST_DIR = BASE_DIR / "frontend" / "dist"
+DIST_INDEX = DIST_DIR / "index.html"
+DIST_ASSETS = DIST_DIR / "assets"
+
+if DIST_ASSETS.exists():
+    app.mount("/assets", StaticFiles(directory=DIST_ASSETS), name="assets")
 
 # -----------------------------
 # Simple in-memory cache (1 hour)
@@ -181,9 +191,7 @@ async def get_weather():
 # -----------------------------
 # Dashboard HTML
 # -----------------------------
-@app.get("/", response_class=HTMLResponse)
-async def dashboard():
-    return """
+LEGACY_DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -405,6 +413,13 @@ async def dashboard():
 </body>
 </html>
 """
+
+
+@app.get("/")
+async def dashboard():
+    if DIST_INDEX.exists():
+        return FileResponse(DIST_INDEX)
+    return HTMLResponse(LEGACY_DASHBOARD_HTML)
 
 
 # -----------------------------

@@ -7,12 +7,20 @@ Provide a dashboard that shows BTC, stock indices, gold prices, weather, and CPU
 
 ## Development notes
 - The main implementation is consolidated in `main.py`.
-- The UI returns HTML directly.
+- The UI is built with Svelte (Vite) in `frontend/` and compiled to `frontend/dist`.
+- `main.py` serves `frontend/dist/index.html` when present and falls back to the legacy inline HTML when not built.
 - Because it depends on external APIs, return `N/A` when fetches fail.
 
 ## Run
 ```bash
 uv run uvicorn main:app --host 0.0.0.0 --port 8080
+```
+
+## Frontend build
+```bash
+cd frontend
+npm install
+npm run build
 ```
 
 ## Tests
