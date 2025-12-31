@@ -10,13 +10,17 @@ fi
 REMOTE="$1"
 REMOTE_DIR="${2:-~/kiosk_dashboard}"
 
-rsync -avz \
+rsync -avz --delete \
   --exclude ".git/" \
   --exclude ".DS_Store" \
   --exclude "__pycache__/" \
   --exclude "*.pyc" \
   --exclude ".venv/" \
   --exclude "venv/" \
+  --exclude "*.md" \
+  --exclude "deploy.sh" \
+  --exclude "*.png" \
+  --exclude "LICENSE" \
   --exclude "frontend/node_modules/" \
   --exclude "frontend/.svelte-kit/" \
   --exclude "frontend/.vite/" \
