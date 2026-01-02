@@ -32,6 +32,13 @@ npm install
 npm run build
 ```
 
+## Deploy
+Fabric tasks are defined in `fabfile.py` and use rsync + systemd.
+```bash
+uv run fab -H user@host deploy
+```
+The deploy task will install `uv` and Node.js (via nvm) on the remote host if missing.
+
 ## API
 - `GET /api/dashboard`: BTC/indices/gold/temperature/time
 - `GET /api/weather`: Current weather in Tokyo
