@@ -2,27 +2,27 @@
   import { onMount } from 'svelte';
 
   const weatherCodes = {
-    0: 'Clear',
-    1: 'Mainly clear',
-    2: 'Partly cloudy',
-    3: 'Overcast',
-    45: 'Fog',
-    48: 'Rime fog',
-    51: 'Light drizzle',
-    53: 'Moderate drizzle',
-    55: 'Dense drizzle',
-    61: 'Slight rain',
-    63: 'Moderate rain',
-    65: 'Heavy rain',
-    71: 'Slight snow',
-    73: 'Moderate snow',
-    75: 'Heavy snow',
-    80: 'Rain showers',
-    81: 'Heavy showers',
-    82: 'Violent showers',
-    95: 'Thunderstorm',
-    96: 'Thunderstorm + hail',
-    99: 'Thunderstorm + heavy hail'
+    0: '快晴', // Clear
+    1: 'おおむね晴れ', // Mainly clear
+    2: '一部曇り', // Partly cloudy
+    3: '曇り', // Overcast
+    45: '霧', // Fog
+    48: '着氷性の霧', // Rime fog
+    51: '弱い霧雨', // Light drizzle
+    53: '霧雨', // Moderate drizzle
+    55: '強い霧雨', // Dense drizzle
+    61: '弱い雨', // Slight rain
+    63: '雨', // Moderate rain
+    65: '強い雨', // Heavy rain
+    71: '弱い雪', // Slight snow
+    73: '雪', // Moderate snow
+    75: '強い雪', // Heavy snow
+    80: 'にわか雨', // Rain showers
+    81: '強いにわか雨', // Heavy showers
+    82: '激しいにわか雨', // Violent showers
+    95: '雷雨', // Thunderstorm
+    96: '雷雨（雹）', // Thunderstorm + hail
+    99: '激しい雷雨（雹）' // Thunderstorm + heavy hail
   };
 
   let dashboard = {
@@ -39,7 +39,8 @@
     temperature: 'N/A',
     weathercode: 'N/A',
     windspeed: 'N/A',
-    time: 'N/A'
+    time: 'N/A',
+    location: '東京'
   };
 
   let headerTime = '--:--:--';
@@ -65,6 +66,35 @@
     }
   };
 
+  const getCurrentPosition = () =>
+    new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation unsupported'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        timeout: 5000,
+        maximumAge: 600000
+      });
+    });
+
+  const updateWeatherWithLocation = async () => {
+    try {
+      const pos = await getCurrentPosition();
+      const { latitude, longitude } = pos.coords;
+      const res = await fetch(`/api/weather?lat=${latitude}&lon=${longitude}`);
+      const data = await res.json();
+      if (data.temperature === 'N/A') {
+        await updateWeather();
+        return;
+      }
+      weather = data;
+    } catch (error) {
+      await updateWeather();
+    }
+  };
+
   const updateHeaderTime = () => {
     const now = new Date();
     const pad2 = (value) => String(value).padStart(2, '0');
@@ -83,11 +113,11 @@
 
   onMount(() => {
     updateDashboard();
-    updateWeather();
+    updateWeatherWithLocation();
     updateHeaderTime();
 
     const dashboardTimer = setInterval(updateDashboard, 30000);
-    const weatherTimer = setInterval(updateWeather, 3600000);
+    const weatherTimer = setInterval(updateWeatherWithLocation, 3600000);
     const clockTimer = setInterval(updateHeaderTime, 1000);
 
     return () => {
@@ -113,22 +143,26 @@
     typeof weather.windspeed === 'number' ? `${weather.windspeed} m/s` : weather.windspeed;
   $: weatherTimeText =
     weather.time !== 'N/A' ? weather.time.replace('T', ' ') : weather.time;
+  $: weatherLocation = weather.location || '東京';
 </script>
 
 <div class="dashboard">
   <h1 id="time-header">{headerTime}</h1>
-  <div id="metrics">
-    <div class="metric weather">
-      ☁️ 東京の天気: {weatherCondition}<br />
-      🌡️ {weatherTempText}<br />
-      💨 {weatherWindText}<br />
-      <span class="weather-time">🕒 {weatherTimeText} 時点</span>
+  <section class="weather-section">
+    <div class="weather-card">
+      <div class="weather-main">☁️ {weatherLocation}</div>
+      <div>{weatherCondition}</div>
+      <div>🌡️ {weatherTempText}</div>
+      <div>💨 {weatherWindText}</div>
+      <div class="weather-time">🕒 {weatherTimeText} 時点</div>
     </div>
-    <div class="metric btc">₿ ビットコイン: ￥{btcText}</div>
-    <div class="metric sp500">📈 S&P 500: {sp500Text}</div>
+  </section>
+  <div id="metrics">
     <div class="metric nikkei">🇯🇵 日経平均: {nikkeiText}</div>
+    <div class="metric sp500">📈 S&P 500: {sp500Text}</div>
     <div class="metric gold">🪙 金（円）: {goldText}</div>
     <div class="metric fx">💱 ドル円: {usdJpyText}</div>
+    <div class="metric btc">₿ ビットコイン: ￥{btcText}</div>
     <div class="metric temp">🌡️ CPU温度: {tempText}</div>
   </div>
 </div>
@@ -174,7 +208,9 @@
     gap: clamp(6px, 1.2vh, 12px);
   }
 
-  .metric {
+  .metric,
+  .weather-card,
+  .fixed-temp {
     font-size: clamp(1.1rem, 3.2vh, 2.4rem);
     margin: 0;
     padding: clamp(8px, 1.6vh, 14px);
@@ -208,14 +244,10 @@
     background: rgba(0, 206, 209, 0.12);
   }
 
-  .temp {
+  .temp,
+  .fixed-temp {
     border-color: #ff1493;
     background: rgba(255, 20, 147, 0.1);
-  }
-
-  .weather {
-    border-color: #32cd32;
-    background: rgba(50, 205, 50, 0.1);
   }
 
   .weather-time {
@@ -223,12 +255,38 @@
     opacity: 0.8;
   }
 
+  .weather-section h2 {
+    font-size: clamp(0.95rem, 2.6vh, 1.6rem);
+    margin-bottom: clamp(4px, 0.8vh, 8px);
+  }
+
+  .weather-card {
+    border-color: #32cd32;
+    background: rgba(50, 205, 50, 0.1);
+    display: grid;
+    gap: clamp(4px, 0.8vh, 8px);
+  }
+
+  .weather-main {
+    font-size: clamp(1.2rem, 3.4vh, 2.6rem);
+  }
+
+  .fixed-temp {
+    position: fixed;
+    right: clamp(10px, 2vw, 24px);
+    bottom: clamp(10px, 2vh, 24px);
+    font-size: clamp(0.95rem, 2.4vh, 1.6rem);
+    z-index: 10;
+  }
+
   @media (max-height: 520px) {
     :global(body) {
       padding: 6px 8px;
     }
 
-    .metric {
+    .metric,
+    .weather-card,
+    .fixed-temp {
       border-width: 1px;
       border-radius: 10px;
     }

@@ -8,6 +8,11 @@ from zoneinfo import ZoneInfo
 import time
 from pathlib import Path
 
+try:
+    from geopy.geocoders import Nominatim
+except Exception:
+    Nominatim = None
+
 app = FastAPI(title="Trading Dashboard")
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -23,6 +28,7 @@ if DIST_ASSETS.exists():
 # -----------------------------
 CACHE_TTL_SECONDS = 60 * 60
 _cache_store = {}
+_geolocator = Nominatim(user_agent="kiosk_dashboard") if Nominatim else None
 
 def _get_cache(key):
     cached = _cache_store.get(key)
@@ -101,18 +107,60 @@ def fetch_index(symbol: str):
 
     return "N/A"
 
-def fetch_weather():
-    cache_key = "weather:tokyo"
+def fetch_location_name(latitude: float | None, longitude: float | None):
+    if latitude is None or longitude is None:
+        return "東京"
+
+    if _geolocator is None:
+        return "東京"
+
+    cache_key = f"geocode:{latitude:.4f},{longitude:.4f}"
     cached = _get_cache(cache_key)
     if cached is not None:
         return cached
 
     try:
+        location = _geolocator.reverse(
+            (latitude, longitude),
+            language="ja",
+            zoom=10,
+            addressdetails=True,
+            timeout=5,
+        )
+        if location and location.raw and isinstance(location.raw, dict):
+            address = location.raw.get("address", {})
+            city = (
+                address.get("city")
+                or address.get("town")
+                or address.get("village")
+                or address.get("municipality")
+            )
+            admin1 = address.get("state") or address.get("province")
+            if admin1 and city:
+                value = f"{admin1} {city}"
+                _set_cache(cache_key, value)
+                return value
+    except Exception:
+        pass
+
+    return "東京"
+
+def fetch_weather(latitude: float | None = None, longitude: float | None = None):
+    lat = latitude if latitude is not None else 35.6762
+    lon = longitude if longitude is not None else 139.6503
+    cache_key = f"weather:{lat:.4f},{lon:.4f}"
+    cached = _get_cache(cache_key)
+    if cached is not None:
+        return cached
+
+    location_name = fetch_location_name(latitude, longitude)
+
+    try:
         r = requests.get(
             "https://api.open-meteo.com/v1/forecast",
             params={
-                "latitude": 35.6762,
-                "longitude": 139.6503,
+                "latitude": lat,
+                "longitude": lon,
                 "current_weather": True,
                 "timezone": "Asia/Tokyo",
             },
@@ -125,6 +173,7 @@ def fetch_weather():
             "weathercode": data.get("weathercode", "N/A"),
             "windspeed": data.get("windspeed", "N/A"),
             "time": data.get("time", "N/A"),
+            "location": location_name,
         }
         _set_cache(cache_key, value)
         return value
@@ -134,6 +183,7 @@ def fetch_weather():
             "weathercode": "N/A",
             "windspeed": "N/A",
             "time": "N/A",
+            "location": location_name,
         }
 
 
@@ -188,250 +238,24 @@ async def get_dashboard():
     }
 
 @app.get("/api/weather")
-async def get_weather():
-    return fetch_weather()
-
-
-# -----------------------------
-# Dashboard HTML
-# -----------------------------
-LEGACY_DASHBOARD_HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Trading Dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            background: linear-gradient(135deg, #000, #1a1a1a);
-            color: #0f0;
-            font-family: 'Courier New', monospace;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: clamp(8px, 1.5vh, 16px) clamp(10px, 4vw, 32px);
-        }
-
-        .dashboard {
-            text-align: center;
-            width: min(92vw, 900px);
-            max-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: clamp(6px, 1.2vh, 12px);
-        }
-
-        h1 {
-            margin-bottom: clamp(6px, 1.2vh, 12px);
-            font-size: clamp(1.1rem, 3.2vh, 2.2rem);
-            line-height: 1.1;
-        }
-
-        #metrics {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: clamp(6px, 1.2vh, 12px);
-        }
-
-        .metric {
-            font-size: clamp(1.1rem, 3.2vh, 2.4rem);
-            margin: 0;
-            padding: clamp(8px, 1.6vh, 14px);
-            border: 2px solid;
-            border-radius: 15px;
-            line-height: 1.1;
-        }
-
-        .btc {
-            border-color: #f7931a;
-            background: rgba(247,147,26,0.1);
-        }
-
-        .sp500 {
-            border-color: #1e90ff;
-            background: rgba(30,144,255,0.1);
-        }
-
-        .nikkei {
-            border-color: #ff4500;
-            background: rgba(255,69,0,0.1);
-        }
-
-        .gold {
-            border-color: #ffd700;
-            background: rgba(255,215,0,0.12);
-        }
-
-        .fx {
-            border-color: #00ced1;
-            background: rgba(0,206,209,0.12);
-        }
-
-        .temp {
-            border-color: #ff1493;
-            background: rgba(255,20,147,0.1);
-        }
-
-        .weather {
-            border-color: #32cd32;
-            background: rgba(50,205,50,0.1);
-        }
-
-        .weather-time {
-            font-size: 0.8em;
-            opacity: 0.8;
-        }
-
-        .time {
-            margin-top: clamp(6px, 1.2vh, 12px);
-            font-size: clamp(0.85rem, 2.2vh, 1.2rem);
-            opacity: 0.8;
-        }
-
-        @media (max-height: 520px) {
-            body { padding: 6px 8px; }
-            .metric { border-width: 1px; border-radius: 10px; }
-        }
-
-        @media (max-width: 780px) {
-            #metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-
-        @media (max-width: 520px) {
-            #metrics { grid-template-columns: 1fr; }
-        }
-    </style>
-</head>
-
-<body>
-    <div class="dashboard">
-        <h1 id="time-header">--:--:--</h1>
-        <div id="metrics">Loading...</div>
-    </div>
-
-    <script>
-        const weatherCodes = {
-            0: "Clear",
-            1: "Mainly clear",
-            2: "Partly cloudy",
-            3: "Overcast",
-            45: "Fog",
-            48: "Rime fog",
-            51: "Light drizzle",
-            53: "Moderate drizzle",
-            55: "Dense drizzle",
-            61: "Slight rain",
-            63: "Moderate rain",
-            65: "Heavy rain",
-            71: "Slight snow",
-            73: "Moderate snow",
-            75: "Heavy snow",
-            80: "Rain showers",
-            81: "Heavy showers",
-            82: "Violent showers",
-            95: "Thunderstorm",
-            96: "Thunderstorm + hail",
-            99: "Thunderstorm + heavy hail"
-        };
-
-        async function updateWeather() {
-            try {
-                const res = await fetch('/api/weather');
-                const data = await res.json();
-                const condition = weatherCodes[data.weathercode] || "不明";
-                const tempText = typeof data.temperature === 'number' ? `${data.temperature}°C` : data.temperature;
-                const windText = typeof data.windspeed === 'number' ? `${data.windspeed} m/s` : data.windspeed;
-                const timeText = data.time !== "N/A" ? data.time.replace("T", " ") : data.time;
-
-                const weatherEl = document.getElementById('weather');
-                if (!weatherEl) {
-                    return;
-                }
-
-                weatherEl.innerHTML = `
-                    ☁️ 東京の天気: ${condition}<br>
-                    🌡️ ${tempText}<br>
-                    💨 ${windText}<br>
-                    <span class="weather-time">🕒 ${timeText} 時点</span>
-                `;
-            } catch (e) {
-                console.error("Weather update failed", e);
-            }
-        }
-
-        async function updateDashboard() {
-            try {
-                const res = await fetch('/api/dashboard');
-                const data = await res.json();
-
-                const formatCurrency = (value, symbol) =>
-                    `${symbol}${typeof value === 'number' ? value.toLocaleString() : value}`;
-
-                document.getElementById('metrics').innerHTML = `
-                    <div class="metric weather" id="weather">Loading...</div>
-                    <div class="metric btc">
-                        ₿ ビットコイン: ￥${typeof data.btc === 'number' ? data.btc.toLocaleString() : data.btc}
-                    </div>
-                    <div class="metric sp500">
-                        📈 S&P 500: ${formatCurrency(data.sp500, '＄')}
-                    </div>
-                    <div class="metric nikkei">
-                        🇯🇵 日経平均: ${formatCurrency(data.nikkei225, '￥')}
-                    </div>
-                    <div class="metric gold">
-                        🪙 金（円）: ${formatCurrency(data.gold_jpy, '￥')}
-                    </div>
-                    <div class="metric fx">
-                        💱 ドル円: ${formatCurrency(data.usd_jpy, '￥')}
-                    </div>
-                    <div class="metric temp">
-                        🌡️ CPU温度: ${data.temp}°C
-                    </div>
-                `;
-                await updateWeather();
-            } catch (e) {
-                console.error("Dashboard update failed", e);
-            }
-        }
-
-        function updateHeaderTime() {
-            const now = new Date();
-            const pad2 = (value) => String(value).padStart(2, '0');
-            const dateText = [
-                now.getFullYear(),
-                pad2(now.getMonth() + 1),
-                pad2(now.getDate())
-            ].join('/');
-            const timeText = [
-                pad2(now.getHours()),
-                pad2(now.getMinutes()),
-                pad2(now.getSeconds())
-            ].join(':');
-            document.getElementById('time-header').textContent = `🕒 ${dateText} ${timeText}`;
-        }
-
-        updateDashboard();
-        updateWeather();
-        updateHeaderTime();
-        setInterval(updateWeather, 3600000);
-        setInterval(updateDashboard, 30000);
-        setInterval(updateHeaderTime, 1000);
-    </script>
-</body>
-</html>
-"""
+async def get_weather(lat: float | None = None, lon: float | None = None):
+    return fetch_weather(latitude=lat, longitude=lon)
 
 
 @app.get("/")
 async def dashboard():
     if DIST_INDEX.exists():
         return FileResponse(DIST_INDEX)
-    return HTMLResponse(LEGACY_DASHBOARD_HTML)
+    
+    return HTMLResponse("""
+    <html>
+      <head><title>Trading Dashboard</title></head>
+      <body>
+        <h1>Trading Dashboard</h1>
+        <p>Now building...</p>
+      </body>
+    </html>
+    """)
 
 
 # -----------------------------

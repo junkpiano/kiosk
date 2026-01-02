@@ -37,6 +37,7 @@ def _service_unit(remote_dir: str, service_user: str, home_dir: str) -> str:
     path = ":".join(
         [
             f"{home_dir}/.local/bin",
+            "/usr/sbin",
             "/usr/local/bin",
             "/usr/bin",
             "/bin",
@@ -51,6 +52,7 @@ Type=simple
 User={service_user}
 WorkingDirectory={workdir}
 Environment=PATH={path}
+ExecStartPre=-/usr/bin/env fuser -k 8080/tcp
 ExecStart=/usr/bin/env uv run uvicorn main:app --host 0.0.0.0 --port 8080
 Restart=always
 RestartSec=5
