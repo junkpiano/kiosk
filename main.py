@@ -165,6 +165,9 @@ async def get_dashboard():
     # Gold prices
     gold_jpy = fetch_index("xaujpy")
 
+    # USD/JPY
+    usd_jpy = fetch_index("usdjpy")
+
     # CPU temperature
     try:
         temp_data = psutil.sensors_temperatures()["cpu_thermal"][0].current
@@ -179,6 +182,7 @@ async def get_dashboard():
         "sp500": sp500,
         "nikkei225": nikkei225,
         "gold_jpy": gold_jpy,
+        "usd_jpy": usd_jpy,
         "temp": temp,
         "time": now_jst.strftime("%Y-%m-%d %H:%M:%S JST"),
     }
@@ -261,6 +265,11 @@ LEGACY_DASHBOARD_HTML = """
         .gold {
             border-color: #ffd700;
             background: rgba(255,215,0,0.12);
+        }
+
+        .fx {
+            border-color: #00ced1;
+            background: rgba(0,206,209,0.12);
         }
 
         .temp {
@@ -376,6 +385,9 @@ LEGACY_DASHBOARD_HTML = """
                     </div>
                     <div class="metric gold">
                         🪙 金（円）: ${formatCurrency(data.gold_jpy, '￥')}
+                    </div>
+                    <div class="metric fx">
+                        💱 ドル円: ${formatCurrency(data.usd_jpy, '￥')}
                     </div>
                     <div class="metric temp">
                         🌡️ CPU温度: ${data.temp}°C

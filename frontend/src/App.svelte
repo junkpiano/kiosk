@@ -30,6 +30,7 @@
     sp500: 'N/A',
     nikkei225: 'N/A',
     gold_jpy: 'N/A',
+    usd_jpy: 'N/A',
     temp: 'N/A',
     time: 'N/A'
   };
@@ -100,6 +101,7 @@
   $: sp500Text = formatCurrency(dashboard.sp500, '＄');
   $: nikkeiText = formatCurrency(dashboard.nikkei225, '￥');
   $: goldText = formatCurrency(dashboard.gold_jpy, '￥');
+  $: usdJpyText = formatCurrency(dashboard.usd_jpy, '￥');
   $: tempText = typeof dashboard.temp === 'number' ? `${dashboard.temp}°C` : dashboard.temp;
   $: weatherCondition =
     typeof weather.weathercode === 'number'
@@ -126,6 +128,7 @@
     <div class="metric sp500">📈 S&P 500: {sp500Text}</div>
     <div class="metric nikkei">🇯🇵 日経平均: {nikkeiText}</div>
     <div class="metric gold">🪙 金（円）: {goldText}</div>
+    <div class="metric fx">💱 ドル円: {usdJpyText}</div>
     <div class="metric temp">🌡️ CPU温度: {tempText}</div>
   </div>
 </div>
@@ -198,6 +201,11 @@
   .gold {
     border-color: #ffd700;
     background: rgba(255, 215, 0, 0.12);
+  }
+
+  .fx {
+    border-color: #00ced1;
+    background: rgba(0, 206, 209, 0.12);
   }
 
   .temp {
